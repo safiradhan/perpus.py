@@ -7,20 +7,20 @@ import base64
 import uuid
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI']='postgresql://postgres:postgres@localhost/latihan_baru'
+app.config['SQLALCHEMY_DATABASE_URI']='postgresql://postgres:postgres@localhost/app'
 app.config['SECRET_KEY']='secret'
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
 
 class User(db.Model):
-    id_user = db.Column(db.Integer, primary_key=True, index=True)
+    user_id = db.Column(db.Integer, primary_key=True, index=True)
     full_name = db.Column(db.String(40), nullable=False)
     user_name = db.Column(db.String(40), nullable=False)
     email = db.Column(db.String(45), nullable=False, unique=True)
     password = db.Column(db.String(30), default=False, unique=True)
     admin = db.Column(db.Boolean, default=False)
-    rent_user = db.relationship('Administration', backref = 'renter', lazy = 'dynamic')
+    rent_user = db.relationship('Transaksi', backref = 'renter', lazy = 'dynamic')
     def __repr__(self):
         return f'User <{self.email}>'
 
@@ -30,7 +30,7 @@ class Book(db.Model):
     book_author = db.Column(db.String(40), nullable=False, unique=True)
     book_year = db.Column(db.Integer, nullable=False)
     book_count = db.Column(db.Integer, nullable=False)
-    rent_book = db.relationship('Transaksi', backref = 'pegunjung', lazy = 'dynamic')
+    rent_book = db.relationship('Transaksi', backref = 'bookz', lazy = 'dynamic')
     def __repr__(self):
         return f'Book <{self.book_name}>'
 
@@ -46,7 +46,7 @@ class Transaksi(db.Model):
 
     def __repr__(self):
         return f'Transaksi <{self.booking_id}>'
-################################################################user###################################################
+
 def get_userData(id):
     return User.query.filter_by(user_id=id).first_or_404()
 
@@ -73,7 +73,7 @@ def get_auth(user_name, password):
     return User.query.filter_by(user_name=user_name, password=password).first()
 
 def return_user(u):
-    return {'user id' : u.user_id,'username':u.user_name,'full name':u.full_name, 'email' : u.email, 'admin': u.admin}
+    return {'user_id' : u.user_id,'user_name':u.user_name,'full_name':u.full_name, 'email' : u.email, 'admin': u.admin}
 
 def return_book(b):
     return {'book id' : b.book_id,'book name':b.book_name, 'author': b.book_author,
@@ -94,46 +94,45 @@ def return_rent(rent):
                 'User id': rent.renter.user_id
                 }, 
             '3 Book Information':{ 
-                'Book id': rent.bookr.book_id, 
-                'Book name': rent.bookr.book_name, 
-                'Release year': rent.bookr.release_year, 
-                'Book Author': rent.bookr.book_author, 
-                'Book Publisher': rent.bookr.publisher
+                'Book id': rent.bookx.book_id, 
+                'Book name': rent.bookx.book_name, 
+                'Release year': rent.bookx.release_year, 
+                'Book Author': rent.bookx.book_author, 
+                'Book Publisher': rent.bookx.publisher
             }
         }
 
 def get_hash(password):
     return bcrypt.generate_password_hash(password).decode('utf-8')
 @app.route('/user/')
-def get_users():
-    return jsonify([
-        {
-            'id' : user.public_id, 'name': user.name, 'email' : user.email,
-            'password': user.password
-            } for user in user.query.all()
-    ])
+# def get_users():
+#     return jsonify([
+#         {
+#             'id' : user.public_id, 'name': user.name, 'email' : user.email,
+#             'password': user.password
+#             } for user in user.query.all()
+    # ])
 
-def libraryFine(returned, deadLine):
-    dmy1 = returned.split('/')
-    d1 = int(dmy1[0])
-    m1 = int(dmy1[1])
-    y1 = int(dmy1[2])
-    
-    dmy2 = deadLine.split('/')
-    d2 = int(dmy2[0]) 
-    m2 = int(dmy2[1])
-    y2 = int(dmy2[2])
-    
-    if d2 < d1 and m2 == m1 and y2 == y1:
-        res = (d1 - d2) * 15
-    elif m2 < m1 and y2 == y1:
-        res = (m1 - m2) * 500
-    elif y2 < y1:
-        res = 10000
+def get_fine(b, a): #rent_due, return_date
+    x = a.split("/")
+    y = b.split("/")
+    d1 = int(x[0])
+    d2 = int(y[0])
+    m1 = int(x[1])
+    m2 = int(y[1])
+    y1 = int(x[2])
+    y2 = int(y[2])
+    if y1>y2:
+        return 10000
+    elif m1>m2 and y1==y2:
+        m = (m1-m2)*500
+        return m
+    elif d1>d2 and y1==y2 and m1==m2:
+        d = (d1-d2)*15
+        return d
     else:
-        res = 0
-    
-    return res
+        return 0
+
 def count_stock(book_id):
     query =  Transaksi.query.filter_by(is_returned=False, book_id=book_id).count()
     return query
@@ -183,22 +182,6 @@ def get_bookData(book_id):
         'book_year': book.book_year,
         'book_count' : book.book_count
         }
-######################################################TRANSAKSI######################################################
-# @app.route('/rent/')
-# def get_transaksi():
-#     token = request.headers.get('Authorization')
-#     token2 = token.replace("Basic ","")
-#     plain = base64.b64decode(token2).decode('utf-8')
-#     plain3 = plain.split(":")
-#     book = book.query.filter_by(user_name=plain3[0], password=plain3[1]).fist()
-#     if plain3[0] in user.user_name and plain[1] in user.password:
-#         return jsonify([
-#         {
-#             'booking_id' : Administration.booking_id, 'tanggal pinjam': Administration.tanggalpinjam, 'tanggalkembali' : Administration.tanggalkembali,
-#             'telah kembali': Administration.tanggalkembali
-#             } for Administration in Administration.query.all()
-#     ])
-
 #################################################################USER_CRUD#########################################################################      
 
 @app.route('/users/', methods=['POST'])
@@ -218,13 +201,16 @@ def create_user():
     u = User(
         user_name= data['user_name'],
         full_name= data['full_name'],
-            email= data['email'],
-            admin= data.get('admin', False),
-            password= hash
+        email= data['email'],
+        admin= data.get('admin', False),
+        password= hash
         )
     db.session.add(u)
     db.session.commit()
-    return  return_user(u), 201
+    # return return_user(u), 201
+    return jsonify({
+        "full_name": u.full_name
+    })
 
 @app.route('/book/', methods=['POST'])
 def create_book():
@@ -283,7 +269,7 @@ def update_book(id):
     if 'stock' in data:
         book.book_count=data['stock']
     db.session.commit()
-    return jsonify({'Berhasil': 'Data buku telah di pebarui'}, return_book(buku))
+    return jsonify({'Berhasil': 'Data buku telah di pebarui'}, return_book(Book))
 
 # Endpoint get data user from database filter by user code, with path parameters
 @app.route('/users/<id>/', methods=['DELETE'])
@@ -328,10 +314,10 @@ def get_rent_users(id):
         rent = Transaksi.query.filter_by(user_id=id)
         return jsonify([
             {
-                "Book Name" : pembaca.pengunjung.book_name,
-                "Renter Name" : pembaca.PEMINJAM.full_name,
-                "Rent Date" : pembaca.rent_date,
-                "Rent Due" : pembaca.rent_due
+                "Book Name" : rent.bookx.book_name,
+                "Renter Name" : rent.bookx.full_name,
+                "Rent Date" : rent.rent_date,
+                "Rent Due" : rent.rent_due
 
             }for pembaca in rent
         ])
@@ -343,8 +329,8 @@ def get_rent_books(id):
         rent = Transaksi.query.filter_by(book_id=id)
         return jsonify([
             {
-                "Book Name" : userx.pengunjung.book_name,
-                "User Name" : userx.PEMINJAM.full_name,
+                "Book Name" : userx.rent.book_name,
+                "User Name" : userx.bookx.full_name,
                 "Rent Date" : userx.rent_date,
                 "Rent Due" : userx.rent_due,
                 "Is returned" : userx.is_returned
@@ -387,7 +373,7 @@ def update_rent(id):
             rent.is_returned=data['is returned']
             if rent.is_returned:
                 rent.return_date = data['return date']
-                count_fine = get_fine(rent.rent_due,rent.return_date)
+                count_fine = get_fine
                 rent.fine = count_fine
         db.session.commit() 
         return jsonify([{"Success": "Rent data has been updated"}, return_rent(rent)]), 201 
@@ -407,5 +393,3 @@ def delete_rent(id):
 
 if __name__ == '__main__':
     app.run(debug = True)
-
-
